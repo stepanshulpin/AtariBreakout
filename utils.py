@@ -9,15 +9,16 @@ def show(s):
 
 
 def to_grayscale(img):
-    n = img.shape[0]
-    m = img.shape[1]
-    res_img = np.zeros([n, m], dtype=np.bool_)
-    for i in range(n):
-        for j in range(m):
-            pixel = img[i, j, :]
-            if any(p > 0 for p in pixel):
-                res_img[i, j] = 1
-    return res_img
+    # n = img.shape[0
+    # m = img.shape[1]
+    # res_img = np.zeros([n, m], dtype=np.bool_)
+    # for i in range(n):
+    #     for j in range(m):
+    #         pixel = img[i, j, :]
+    #         if any(p > 0 for p in pixel):
+    #             res_img[i, j] = 1
+    return np.mean(img, axis=2)
+    #return res_img
 
 
 def downsample(img):
@@ -45,23 +46,23 @@ def saw(img):
 
 
 def plat_pos(img):
-    l = list(img[0, ::4])
-    #len = 0
+    l = list(img[0, :])
     pos = 0
-    pos = l[pos:].index(1)
-    #len = l[pos:].index(0)
-    #assert len == 2, 'len is odd'
+    while pos < len(l):
+        if all(p != 0 for p in l[pos:pos + 4]):
+            break
+        pos += 1
     return [pos]
 
 
 def ball_pos(img):
     n = img.shape[0]
     m = img.shape[1]
-    pos = [12, 18]
+    pos = [24, 72]
     for i in range(n):
         for j in range(m):
-            if img[i, j] == 1:
-                pos = [int(i/2), int(j/4)]
+            if img[i, j] != 0:
+                pos = [i, j]
                 break
     return pos
 
@@ -81,3 +82,20 @@ def act(s, Q, env, epsilon, actions):
     max_q = max(qvals.values())
     actions_with_max_q = [a for a, q in qvals.items() if q == max_q]
     return np.random.choice(actions_with_max_q)
+
+
+def convert_to_direction(s, s_none):
+    res = [0,0,0]
+    res[0] = convert_helper(s[0] - s_none[0])
+    res[1] = convert_helper(s[1] - s_none[1])
+    res[2] = convert_helper(s[2] - s_none[2])
+    return res
+
+
+def convert_helper(d):
+    if d < 0:
+        return 0
+    if d == 0:
+        return 1
+    if d > 0:
+        return 2
