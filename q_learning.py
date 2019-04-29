@@ -1,74 +1,95 @@
-import resource
-import sys
-import time
-
-import gym
 import numpy as np
-from utils import get_state, convert_to_direction
 
-env = gym.make('Breakout-v0')
+import utils
 
-# state1 13-height of ball/2 + 1 37-width of ball/2 + 1 18-width/4
-# state2 25 37 18
-#Q = np.zeros([25, 73, 72, 3, 3, 3, env.action_space.n])
-Q = np.load("Q_Table.npy")
-#print(sys.getsizeof(Q))
-actions = range(env.action_space.n)
-eta = .628
-gma = .9
-epis = 10000
-rev_list = []
-epsilon = 0.1
-# get_state_time =0
-# get_max_time = 0
-# start_time = time.clock()
-for i in range(epis):
-    s = env.reset()
-    s_none, _, _, _ = env.step(0)
-    # start_get_state = time.clock()
-    s = get_state(s)
-    # get_state_time += time.clock() - start_get_state
-    # start_get_state = time.clock()
-    s_none = get_state(s_none)
-    # get_state_time += time.clock() - start_get_state
-    s_none = convert_to_direction(s, s_none)
-    s = s + s_none
-    rAll = 0
-    d = False
-    while not d:
-        env.render()
-        # a = act(s, Q, env, epsilon, actions)
-        # start_get_max = time.clock()
-        a = np.argmax(
-            Q[s[0], s[1], s[2], s[3], s[4], s[5], :] + np.random.randn(1, env.action_space.n) * (0.1 / (i + 1)))
-        # get_max_time += time.clock() - start_get_max
-        s_next, r, d, _ = env.step(a)
-        env.render()
-        s_next_none, _, _, _ = env.step(0)
-        # start_get_state = time.clock()
-        s_next = get_state(s_next)
-        # get_state_time += time.clock() - start_get_state
-        # start_get_state = time.clock()
-        s_next_none = get_state(s_next_none)
-        # get_state_time += time.clock() - start_get_state
-        s_next_none = convert_to_direction(s_next, s_next_none)
-        s_next = s_next + s_next_none
-        # start_get_max = time.clock()
-        Q[s[0], s[1], s[2], s[3], s[4], s[5], a] = (1 - eta) * Q[s[0], s[1], s[2], s[3], s[4], s[5], a] + eta * (
-                r + gma * np.max(Q[s_next[0], s_next[1], s_next[2], s_next[3], s_next[4], s_next[5], :]))
-        # get_max_time += time.clock() - start_get_max
-        rAll += r
-        s = s_next
-    rev_list.append(rAll)
-    env.render()
-    # if i > 0 and i % 10 == 0:
-    #     time_all = time.clock() - start_time
-    #     print("get state time percent " + str(i) + " episodes " + str(100 * get_state_time / (time_all)))
-    #     print("get max time percent " + str(i) + " episodes " + str(100 * get_max_time / (time_all)))
-    if i > 0 and i % 100 == 0:
-        print("Reward Sum on " + str(i) + " episodes " + str(sum(rev_list) / i))
-        print("Reward Max on " + str(i) + " episodes " + str(max(rev_list)))
 
-print("Reward Sum on all episodes " + str(sum(rev_list) / epis))
-np.save("Q_Table.npy", Q)
-print("Final Values Q-Table")
+class QLearning(object):
+    def __init__(self, eta, gma):
+        self.eta = eta
+        self.gma = gma
+        self.Q = None
+        self.game = None
+        self.last_states = list()
+        self.last_next_states = list()
+        self.last_actions = list()
+
+    def learn(self, game, epis):
+        self.Q = np.zeros([25, 73, 72, 3, 3, 3, game.get_action_n()])
+        self.game = game
+        for i in range(epis):
+            s = game.reset_game()
+
+            restart = False
+            game.d = False
+            game.d_next = False
+            while game.not_end():
+
+                if restart:
+                    a = 1
+                    restart = False
+                else:
+                    a = self.get_opt_action(s, i)
+
+                s_next = game.get_next_state(a)
+
+                if s == s_next:
+                    restart = True
+
+                self.last_states.append(s)
+                self.last_next_states.append(s_next)
+                self.last_actions.append(a)
+
+                if game.is_break():
+                    self.assign_reward(1, 15)
+
+                if game.is_fail():
+                    self.assign_reward(-2, 8)
+
+                game.add_r()
+                s = s_next
+
+            game.add_reward()
+            if i > 0 and i % 100 == 0:
+                game.print_statistic(i)
+                print("Q Sum on " + str(i) + " episodes " + str(np.sum(self.Q)))
+
+        game.print_statistic(epis)
+        np.save("Q_Table.npy", self.Q)
+
+    def play(self, game, epis):
+
+        self.Q = np.load("Q_Table.npy")
+
+        game.d = False
+        game.d_next = False
+        for i in range(epis):
+            s = game.reset_game()
+            while game.not_end():
+                a = self.get_max_action(s)
+
+                s_next = game.get_next_state(a)
+                s = s_next
+
+            if i > 0 and i % 100 == 0:
+                game.print_statistic(i)
+
+        game.print_statistic(epis)
+
+    def get_opt_action(self, s, i):
+        return np.argmax(self.Q[s[0], s[1], s[2], s[3], s[4], s[5], :]
+                         + np.random.randn(1, self.game.get_action_n()) * (0.1 / (i + 1)))
+
+    def get_max_action(self, s):
+        return np.argmax(self.Q[s[0], s[1], s[2], s[3], s[4], s[5], :])
+
+    def assign_reward(self, r, n):
+        k = 0
+        while k < n and len(self.last_states) > 0:
+            state = self.last_states.pop()
+            state_next = self.last_next_states.pop()
+            action = self.last_actions.pop()
+            utils.learn(self.Q, state, state_next, action, self.eta, self.gma, r)
+
+        self.last_states.clear()
+        self.last_next_states.clear()
+        self.last_actions.clear()

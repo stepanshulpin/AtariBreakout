@@ -83,7 +83,6 @@ def act(s, Q, env, epsilon, actions):
     actions_with_max_q = [a for a, q in qvals.items() if q == max_q]
     return np.random.choice(actions_with_max_q)
 
-
 def convert_to_direction(s, s_none):
     res = [0,0,0]
     res[0] = convert_helper(s[0] - s_none[0])
@@ -99,3 +98,17 @@ def convert_helper(d):
         return 1
     if d > 0:
         return 2
+
+
+def learn(Q, s, s_next, a, eta, gma, r):
+    Q[s[0], s[1], s[2], s[3], s[4], s[5], a] = \
+        (1 - eta) * Q[s[0], s[1], s[2], s[3], s[4], s[5], a] + \
+        eta * (r + gma * np.max(Q[s_next[0], s_next[1], s_next[2], s_next[3], s_next[4], s_next[5], :]))
+
+
+def learn_sarsa(Q, state, state_next, action, action1, eta, gma, r):
+    Q[state[0], state[1], state[2], state[3], state[4], state[5], action] = \
+        Q[state[0], state[1], state[2], state[3], state[4], state[5], action] + \
+        eta * (r + gma * Q[state_next[0], state_next[1], state_next[2], state_next[3], state_next[4], state_next[5], action1] -
+               Q[state[0], state[1], state[2], state[3], state[4], state[5], action])
+

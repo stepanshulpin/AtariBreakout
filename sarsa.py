@@ -1,56 +1,97 @@
-import resource
-import sys
-
-import gym
 import numpy as np
-from utils import get_state, convert_to_direction
 
-env = gym.make('Breakout-v0')
+import utils
 
-# state1 25-height of ball/2 + 1 37-width of ball/2 + 1 18-width/4
-# state2 25 37 18
-#Q = np.zeros([25, 73, 72, 3, 3, 3, env.action_space.n])
-Q = np.load("Q_Table_SARSA.npy")
-actions = range(env.action_space.n)
-eta = .628
-gma = .9
-epis = 10000
-rev_list = []
-epsilon = 0.1
 
-for i in range(epis):
-    s = env.reset()
-    s_none, _, _, _ = env.step(0)
-    s = get_state(s)
-    s_none = get_state(s_none)
-    s_none = convert_to_direction(s, s_none)
-    s = s + s_none
-    a = np.argmax(Q[s[0], s[1], s[2], s[3], s[4], s[5], :] + np.random.randn(1, env.action_space.n) * (1. / (i + 1)))
-    rAll = 0
-    d = False
-    while not d:
-        env.render()
-        s_next, r, d, _ = env.step(a)
-        env.render()
-        s_next_none, _, _, _ = env.step(0)
-        s_next = get_state(s_next)
-        s_next_none = get_state(s_next_none)
-        s_next_none = convert_to_direction(s_next, s_next_none)
-        s_next = s_next + s_next_none
-        a1 = np.argmax(
-            Q[s_next[0], s_next[1], s_next[2], s_next[3], s_next[4], s_next[5], :] + np.random.randn(1, env.action_space.n) * (1. / (i + 1)))
-        Q[s[0], s[1], s[2], s[3], s[4], s[5], a] = Q[s[0], s[1], s[2], s[3], s[4], s[5], a] + eta * (
-                    r + gma * Q[s_next[0], s_next[1], s_next[2], s_next[3], s_next[4], s_next[5], a1] - Q[s[0], s[1], s[2], s[3], s[4], s[5], a])
-        rAll += r
-        s = s_next
-        a = a1
-    rev_list.append(rAll)
-    env.render()
-    if i > 0 and i % 100 == 0:
-        print("Reward Sum on " + str(i) + " episodes " + str(sum(rev_list) / i))
-        print("Reward Max on " + str(i) + " episodes " + str(max(rev_list)))
+class Sarsa(object):
+    def __init__(self, eta, gma):
+        self.eta = eta
+        self.gma = gma
+        self.Q = None
+        self.game = None
+        self.last_states = list()
+        self.last_next_states = list()
+        self.last_actions = list()
+        self.last_actions_1 = list()
 
-print("Reward Sum on all episodes " + str(sum(rev_list) / epis))
-np.save("Q_Table_SARSA.npy",Q)
-print("Final Values Q-Table")
+    def learn(self, game, epis):
+        self.Q = np.zeros([25, 73, 72, 3, 3, 3, game.get_action_n()])
+        self.game = game
+        for i in range(epis):
+            s = game.reset_game()
+            a = self.get_opt_action(s, i)
+            restart = False
+            game.d = False
+            game.d_next = False
+            while game.not_end():
+                s_next = game.get_next_state(a)
+                if restart:
+                    a1 = 1
+                    restart = False
+                else:
+                    a1 = self.get_opt_action(s_next, i)
 
+                if s == s_next:
+                    restart = True
+
+                self.last_states.append(s)
+                self.last_next_states.append(s_next)
+                self.last_actions.append(a)
+                self.last_actions_1.append(a1)
+
+                if game.is_break():
+                    self.assign_reward(1, 15)
+
+                if game.is_fail():
+                    self.assign_reward(-2, 8)
+
+                game.add_r()
+                s = s_next
+                a = a1
+            game.add_reward()
+            if i > 0 and i % 100 == 0:
+                game.print_statistic(i)
+                print("Q Sum on " + str(i) + " episodes " + str(np.sum(self.Q)))
+
+        game.print_statistic(epis)
+        np.save("Q_Table_SARSA.npy", self.Q)
+
+    def play(self, game, epis):
+
+        self.Q = np.load("Q_Table_SARSA.npy")
+
+        game.d = False
+        game.d_next = False
+        for i in range(epis):
+            s = game.reset_game()
+            while game.not_end():
+                a = self.get_max_action(s)
+
+                s_next = game.get_next_state(a)
+                s = s_next
+
+            if i > 0 and i % 100 == 0:
+                game.print_statistic(i)
+
+        game.print_statistic(epis)
+
+    def get_opt_action(self, s, i):
+        return np.argmax(self.Q[s[0], s[1], s[2], s[3], s[4], s[5], :]
+                         + np.random.randn(1, self.game.get_action_n()) * (0.1 / (i + 1)))
+
+    def get_max_action(self, s):
+        return np.argmax(self.Q[s[0], s[1], s[2], s[3], s[4], s[5], :])
+
+    def assign_reward(self, r, n):
+        k = 0
+        while k < n and len(self.last_states) > 0:
+            state = self.last_states.pop()
+            state_next = self.last_next_states.pop()
+            action = self.last_actions.pop()
+            action1 = self.last_actions_1.pop()
+            utils.learn_sarsa(self.Q, state, state_next, action, action1, self.eta, self.gma, r)
+
+        self.last_states.clear()
+        self.last_next_states.clear()
+        self.last_actions.clear()
+        self.last_actions_1.clear()
