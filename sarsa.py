@@ -60,10 +60,11 @@ class Sarsa(object):
 
         self.Q = np.load("Q_Table_SARSA.npy")
 
-        game.d = False
-        game.d_next = False
         for i in range(epis):
             s = game.reset_game()
+
+            game.d = False
+            game.d_next = False
             while game.not_end():
                 a = self.get_max_action(s)
 
