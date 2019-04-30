@@ -7,7 +7,7 @@ SARSA game:
     reward max 27  
     reward avg 12.15  
     
-Random game:
+Random game:  
     reward max 4  
     reward avg 1.31  
 
