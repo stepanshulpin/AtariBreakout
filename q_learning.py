@@ -68,8 +68,9 @@ class QLearning(object):
                 a = self.get_max_action(s)
 
                 s_next = game.get_next_state(a)
+                game.add_r()
                 s = s_next
-
+            game.add_reward()
             if i > 0 and i % 100 == 0:
                 game.print_statistic(i)
 
